@@ -2,3 +2,7 @@ streamlit
 pandas
 openpyxl
 xlrd
+numpy
+requests
+beautifulsoup4
+lxml
