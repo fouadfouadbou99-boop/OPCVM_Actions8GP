@@ -1,3 +1,7 @@
-# Application Streamlit OPCVM
+# OPCVM Actions
 
-Lancer : streamlit run app.py
+Application Streamlit de suivi des OPCVM.
+
+Lancement local :
+
+streamlit run app.py
