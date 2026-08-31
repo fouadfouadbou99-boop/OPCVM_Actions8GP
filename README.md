@@ -1,49 +1,22 @@
-# 📈 OPCVM Actions GP
+# Tableau de Bord OPCVM
 
-Application Streamlit permettant :
+Application Streamlit permettant le suivi d'un portefeuille OPCVM.
 
-- Import d'un portefeuille OPCVM au format Excel
-- Analyse du portefeuille
-- Calcul automatique de la valorisation
-- Suivi des indicateurs clés
-- Visualisation graphique
-- Export Excel du reporting
-- Connexion au site ASFIM
-- Rafraîchissement automatique des données ASFIM
+## Fonctionnalités
 
----
-
-# Fonctionnalités
-
-## Portefeuille
-
-L'application permet :
-
-- Chargement d'un fichier Excel (.xlsx ou .xls)
-- Visualisation des données
-- Calcul de la valorisation
-- Statistiques descriptives
+- Import Excel OPCVM
+- Calcul de valorisation
+- KPI
 - Top 10 positions
+- Statistiques descriptives
 - Export Excel
+- Consultation des données ASFIM
+- Rafraîchissement ASFIM
 
-## ASFIM
+## Déploiement
 
-L'application se connecte au portail ASFIM pour :
+Application hébergée sur Streamlit Cloud.
 
-- Rechercher automatiquement les publications disponibles
-- Télécharger la liste des fichiers
-- Actualiser les données à la demande
+## Dépendances
 
-Source :
-
-https://asfim.ma/publications/tableaux-des-performances/
-
----
-
-# Structure du projet
-
-```text
-opcvm_actions8gp/
-│
-├── app.py
-├── 
+Voir requirements.txt
