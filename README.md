@@ -1,2 +1,3 @@
-# OPCVM_Actions8GP
-Suivi des réalisations des OPCVM Actions Grands Publics
+# Application Streamlit OPCVM
+
+Lancer : streamlit run app.py
