@@ -1,49 +1,109 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import io
 
+# ==========================
+# CONFIGURATION
+# ==========================
+
 st.set_page_config(
-    page_title="Suivi OPCVM Actions",
+    page_title="Tableau de Bord OPCVM",
+    page_icon="📈",
     layout="wide"
 )
 
-st.title("📈 Tableau de bord OPCVM")
+st.title("📈 Tableau de Bord OPCVM")
 
-uploaded_file = st.file_uploader(
-    "Charger le fichier OPCVM",
+# ==========================
+# FONCTION ASFIM
+# ==========================
+
+@st.cache_data(ttl=3600)
+def charger_donnees_asfim():
+
+    url = "https://asfim.ma/publications/tableaux-des-performances/"
+
+    tables = pd.read_html(url)
+
+    if len(tables) > 0:
+        return tables[0]
+
+    return pd.DataFrame()
+
+# ==========================
+# SIDEBAR
+# ==========================
+
+st.sidebar.header("Actions")
+
+fichier = st.sidebar.file_uploader(
+    "Importer le portefeuille OPCVM",
     type=["xls", "xlsx"]
 )
 
-if uploaded_file:
+# ==========================
+# PORTEFEUILLE
+# ==========================
+
+if fichier:
 
     try:
-        df = pd.read_excel(uploaded_file)
-    except:
-        st.error("Impossible de lire le fichier")
+        df = pd.read_excel(fichier)
+
+    except Exception as e:
+        st.error(f"Erreur de lecture : {e}")
         st.stop()
 
-    st.subheader("Données importées")
-    st.dataframe(df, width="stretch")
+    st.subheader("Portefeuille")
 
-    # KPIs
+    st.dataframe(
+        df,
+        width="stretch"
+    )
 
-    col1, col2, col3 = st.columns(3)
+    # =====================================
+    # NORMALISATION DES COLONNES
+    # =====================================
+
+    df.columns = (
+        df.columns
+        .str.replace(" ", "_")
+        .str.replace("-", "_")
+    )
+
+    # =====================================
+    # KPI
+    # =====================================
+
+    st.subheader("Indicateurs Clés")
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    nb_fonds = len(df)
+
+    c1.metric(
+        "Nombre OPCVM",
+        nb_fonds
+    )
 
     if "Nombre_Parts" in df.columns:
-        total_parts = df["Nombre_Parts"].sum()
-        col1.metric("Nombre total de parts", f"{total_parts:,.0f}")
+
+        c2.metric(
+            "Nombre de Parts",
+            f"{df['Nombre_Parts'].sum():,.0f}"
+        )
 
     if "CMP_VL_Net" in df.columns:
-        vl_moyenne = df["CMP_VL_Net"].mean()
-        col2.metric("VL moyenne", f"{vl_moyenne:,.2f}")
 
-    if "Description" in df.columns:
-        nb_fonds = df["Description"].nunique()
-        col3.metric("Nombre de fonds", nb_fonds)
+        c3.metric(
+            "VL Moyenne",
+            f"{df['CMP_VL_Net'].mean():,.2f}"
+        )
 
-    st.divider()
-
-    # Calcul valorisation
+    # =====================================
+    # VALORISATION
+    # =====================================
 
     if (
         "Nombre_Parts" in df.columns
@@ -57,58 +117,45 @@ if uploaded_file:
 
         valorisation_totale = df["Valorisation"].sum()
 
-        st.metric(
-            "Valorisation totale",
+        c4.metric(
+            "Valorisation Totale",
             f"{valorisation_totale:,.0f} MAD"
         )
 
-    st.divider()
+    # =====================================
+    # PMV
+    # =====================================
 
-    st.subheader("Répartition des valorisations")
+    if (
+        "Valo_Unitaire_(S_1)" in df.columns
+        and "CMP_VL_Net" in df.columns
+    ):
+
+        df["PMV"] = (
+            df["CMP_VL_Net"]
+            - df["Valo_Unitaire_(S_1)"]
+        )
+
+    # =====================================
+    # TOP POSITIONS
+    # =====================================
 
     if "Valorisation" in df.columns:
 
-        graphique = (
-            df.groupby("Description")["Valorisation"]
-            .sum()
-            .sort_values(ascending=False)
+        st.subheader("Top Positions")
+
+        top = (
+            df[["Description", "Valorisation"]]
+            .sort_values(
+                by="Valorisation",
+                ascending=False
+            )
+            .head(10)
         )
 
-        st.bar_chart(graphique)
-
-    st.divider()
-
-    st.subheader("Statistiques")
-
-    numeriques = df.select_dtypes(include="number")
-
-    if not numeriques.empty:
         st.dataframe(
-            numeriques.describe(),
+            top,
             width="stretch"
         )
 
-    # Export Excel
-
-    output = io.BytesIO()
-
-    with pd.ExcelWriter(
-        output,
-        engine="openpyxl"
-    ) as writer:
-
-        df.to_excel(
-            writer,
-            sheet_name="Résultat",
-            index=False
-        )
-
-    st.download_button(
-        label="📥 Télécharger Excel",
-        data=output.getvalue(),
-        file_name="Reporting_OPCVM.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-else:
-    st.info("Veuillez charger un fichier Excel.")
+    # =======================
