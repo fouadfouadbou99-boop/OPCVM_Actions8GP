@@ -1,8 +1,8 @@
 streamlit
 pandas
+numpy
 openpyxl
 xlrd
-numpy
 requests
 beautifulsoup4
 lxml
