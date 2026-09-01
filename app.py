@@ -37,35 +37,33 @@ uploaded_asfim = st.sidebar.file_uploader(
 
 def lire_asfim(fichier):
 
-    essais = [0, 1, 2, 3, 4, 5]
-
-    for h in essais:
+    for h in [0, 1, 2, 3, 4, 5]:
 
         try:
+
+            fichier.seek(0)
 
             df = pd.read_excel(
                 fichier,
                 header=h
             )
 
-            noms = [
+            df.columns = [
                 str(c).strip()
                 for c in df.columns
             ]
 
             if any(
                 "Maroclear" in c
-                for c in noms
+                for c in df.columns
             ):
-
-                df.columns = noms
                 return df
 
-        except:
+        except Exception:
             pass
 
     raise Exception(
-        "Impossible d'identifier automatiquement les colonnes ASFIM."
+        "Structure ASFIM non reconnue."
     )
 
 # =====================================================
@@ -85,6 +83,7 @@ if uploaded_portefeuille:
         st.error(
             f"Erreur lecture portefeuille : {e}"
         )
+
         st.stop()
 
     portefeuille.columns = [
@@ -96,6 +95,7 @@ if uploaded_portefeuille:
         .replace(")", "")
 
         for col in portefeuille.columns
+
     ]
 
     st.header("📂 Portefeuille")
@@ -104,8 +104,6 @@ if uploaded_portefeuille:
         portefeuille,
         width="stretch"
     )
-
-    # KPI PORTFEUILLE
 
     c1, c2, c3 = st.columns(3)
 
@@ -128,9 +126,9 @@ if uploaded_portefeuille:
             f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
         )
 
-    # =================================================
+    # =====================================================
     # ASFIM
-    # =================================================
+    # =====================================================
 
     if uploaded_asfim:
 
@@ -143,10 +141,14 @@ if uploaded_portefeuille:
             st.header("📡 Mise à jour ASFIM")
 
             st.success(
-                f"{len(asfim):,} OPCVM ASFIM chargés"
+                f"{len(asfim):,} lignes ASFIM chargées"
             )
 
-            # Détection automatique
+            st.subheader("Colonnes ASFIM détectées")
+
+            st.write(
+                asfim.columns.tolist()
+            )
 
             code_col = next(
                 c for c in asfim.columns
@@ -198,10 +200,6 @@ if uploaded_portefeuille:
                 how="left"
             )
 
-            # ==========================================
-            # VALORISATION
-            # ==========================================
-
             portefeuille["Valorisation_ASFIM"] = (
                 portefeuille["Nombre_Parts"]
                 * portefeuille[vl_col]
@@ -209,22 +207,15 @@ if uploaded_portefeuille:
 
             portefeuille["Ecart_VL"] = (
                 portefeuille[vl_col]
-                -
-                portefeuille["CMP_VL_Net"]
+                - portefeuille["CMP_VL_Net"]
             )
 
-            # ==========================================
-            # DASHBOARD
-            # ==========================================
-
-            st.header(
-                "📊 Dashboard ASFIM"
-            )
+            st.header("📊 Dashboard ASFIM")
 
             d1, d2, d3, d4 = st.columns(4)
 
             d1.metric(
-                "OPCVM",
+                "Nombre OPCVM",
                 len(portefeuille)
             )
 
@@ -239,26 +230,18 @@ if uploaded_portefeuille:
             )
 
             d4.metric(
-                "Écart VL",
+                "Écart VL Moyen",
                 f"{portefeuille['Ecart_VL'].mean():,.2f}"
             )
-
-            # ==========================================
-            # TOP 10
-            # ==========================================
 
             st.subheader(
                 "🏆 Top 10 Positions"
             )
 
-            top10 = (
-                portefeuille
-                .sort_values(
-                    "Valorisation_ASFIM",
-                    ascending=False
-                )
-                .head(10)
-            )
+            top10 = portefeuille.sort_values(
+                "Valorisation_ASFIM",
+                ascending=False
+            ).head(10)
 
             st.dataframe(
                 top10[
@@ -273,17 +256,11 @@ if uploaded_portefeuille:
             st.bar_chart(
                 top10.set_index(
                     "Description"
-                )[
-                    "Valorisation_ASFIM"
-                ]
+                )["Valorisation_ASFIM"]
             )
 
-            # ==========================================
-            # REPARTITION GESTION
-            # ==========================================
-
             st.subheader(
-                "🏢 Société de Gestion"
+                "🏢 Répartition Société de Gestion"
             )
 
             sg = portefeuille.groupby(
@@ -294,12 +271,8 @@ if uploaded_portefeuille:
 
             st.bar_chart(sg)
 
-            # ==========================================
-            # CLASSIFICATION
-            # ==========================================
-
             st.subheader(
-                "📑 Classification"
+                "📑 Répartition Classification"
             )
 
             cl = portefeuille.groupby(
@@ -309,10 +282,6 @@ if uploaded_portefeuille:
             ].sum()
 
             st.bar_chart(cl)
-
-            # ==========================================
-            # EXPORT
-            # ==========================================
 
             sortie = io.BytesIO()
 
@@ -358,4 +327,3 @@ st.caption(
         "%d/%m/%Y %H:%M"
     )
 )
-`
