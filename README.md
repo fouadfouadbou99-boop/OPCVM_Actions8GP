@@ -1,17 +1,34 @@
 # Tableau de Bord OPCVM
 
-Application Streamlit permettant le suivi d'un portefeuille OPCVM.
+Application Streamlit destinée au suivi des portefeuilles OPCVM.
 
 ## Fonctionnalités
 
-- Import Excel OPCVM
-- Calcul de valorisation
-- KPI
-- Top 10 positions
-- Statistiques descriptives
-- Export Excel
-- Consultation des données ASFIM
-- Rafraîchissement ASFIM
+### Portefeuille
+
+- Chargement du portefeuille Excel
+- Calcul des valorisations
+- KPI de suivi
+- Top positions
+
+### Intégration ASFIM
+
+- Chargement du fichier ASFIM
+- Mise à jour automatique des VL
+- Rapprochement par Code Maroclear
+- Valorisation actualisée
+
+### Analyses
+
+- Répartition par société de gestion
+- Répartition par classification
+- Top performances
+- Top contre-performances
+
+### Exports
+
+- Export Reporting complet Excel
+- Export données ASFIM
 
 ## Déploiement
 
