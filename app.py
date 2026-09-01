@@ -37,8 +37,11 @@ uploaded_asfim = st.sidebar.file_uploader(
 # =====================================================
 
 def lire_asfim(fichier):
+
     for header in range(0, 6):
+
         try:
+
             fichier.seek(0)
 
             df = pd.read_excel(
@@ -72,12 +75,15 @@ if uploaded_portefeuille is not None:
     )
 
     portefeuille.columns = [
+
         str(c)
         .replace(" ", "_")
         .replace("-", "_")
         .replace("(", "")
         .replace(")", "")
+
         for c in portefeuille.columns
+
     ]
 
     # ==========================================
@@ -109,12 +115,14 @@ if uploaded_portefeuille is not None:
         )
 
         if "Nombre_Parts" in portefeuille.columns:
+
             c2.metric(
                 "Nombre Parts",
                 f"{portefeuille['Nombre_Parts'].sum():,.0f}"
             )
 
         if "CMP_VL_Net" in portefeuille.columns:
+
             c3.metric(
                 "VL Moyenne",
                 f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
@@ -129,6 +137,7 @@ if uploaded_portefeuille is not None:
             )
 
             portefeuille["Code"] = (
+
                 pd.to_numeric(
                     portefeuille["Code"],
                     errors="coerce"
@@ -136,9 +145,11 @@ if uploaded_portefeuille is not None:
                 .fillna(0)
                 .astype(int)
                 .astype(str)
+
             )
 
             asfim["Code Maroclear"] = (
+
                 pd.to_numeric(
                     asfim["Code Maroclear"],
                     errors="coerce"
@@ -146,9 +157,11 @@ if uploaded_portefeuille is not None:
                 .fillna(0)
                 .astype(int)
                 .astype(str)
+
             )
 
             resultat = portefeuille.merge(
+
                 asfim[
                     [
                         "Code Maroclear",
@@ -160,9 +173,11 @@ if uploaded_portefeuille is not None:
                         "1 semaine"
                     ]
                 ],
+
                 left_on="Code",
                 right_on="Code Maroclear",
                 how="left"
+
             )
 
             resultat["VL"] = pd.to_numeric(
@@ -176,8 +191,10 @@ if uploaded_portefeuille is not None:
             )
 
             resultat["Valorisation_ASFIM"] = (
+
                 resultat["Nombre_Parts"]
                 * resultat["VL"]
+
             )
 
             resultat["Valorisation_ASFIM"] = (
@@ -186,18 +203,21 @@ if uploaded_portefeuille is not None:
             )
 
             if "CMP_VL_Net" in resultat.columns:
+
                 resultat["Ecart_VL"] = (
                     resultat["VL"]
                     - resultat["CMP_VL_Net"]
                 )
 
             if "YTD" in resultat.columns:
+
                 resultat["YTD"] = pd.to_numeric(
                     resultat["YTD"],
                     errors="coerce"
                 )
 
             if "1 semaine" in resultat.columns:
+
                 resultat["1 semaine"] = pd.to_numeric(
                     resultat["1 semaine"],
                     errors="coerce"
@@ -225,6 +245,7 @@ if uploaded_portefeuille is not None:
                 )
 
                 if "Ecart_VL" in resultat.columns:
+
                     d4.metric(
                         "Écart VL Moyen",
                         f"{resultat['Ecart_VL'].mean():,.2f}"
