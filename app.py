@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import io
 from datetime import datetime
 
@@ -33,21 +32,70 @@ uploaded_asfim = st.sidebar.file_uploader(
 )
 
 # =====================================================
+# FONCTION ASFIM
+# =====================================================
+
+def lire_asfim(fichier):
+
+    essais = [0, 1, 2, 3, 4, 5]
+
+    for h in essais:
+
+        try:
+
+            df = pd.read_excel(
+                fichier,
+                header=h
+            )
+
+            noms = [
+                str(c).strip()
+                for c in df.columns
+            ]
+
+            if any(
+                "Maroclear" in c
+                for c in noms
+            ):
+
+                df.columns = noms
+                return df
+
+        except:
+            pass
+
+    raise Exception(
+        "Impossible d'identifier automatiquement les colonnes ASFIM."
+    )
+
+# =====================================================
 # PORTEFEUILLE
 # =====================================================
 
 if uploaded_portefeuille:
 
-    portefeuille = pd.read_excel(
-        uploaded_portefeuille
-    )
+    try:
+
+        portefeuille = pd.read_excel(
+            uploaded_portefeuille
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Erreur lecture portefeuille : {e}"
+        )
+        st.stop()
 
     portefeuille.columns = [
-        str(c).replace(" ", "_")
+
+        str(col)
+        .replace(" ", "_")
         .replace("-", "_")
         .replace("(", "")
         .replace(")", "")
-        for c in portefeuille.columns
+
+        for col in portefeuille.columns
     ]
 
     st.header("📂 Portefeuille")
@@ -57,27 +105,25 @@ if uploaded_portefeuille:
         width="stretch"
     )
 
-    # =================================================
-    # KPI DE BASE
-    # =================================================
+    # KPI PORTFEUILLE
 
-    col1, col2, col3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
-    col1.metric(
+    c1.metric(
         "Nombre OPCVM",
         len(portefeuille)
     )
 
     if "Nombre_Parts" in portefeuille.columns:
 
-        col2.metric(
+        c2.metric(
             "Nombre Parts",
             f"{portefeuille['Nombre_Parts'].sum():,.0f}"
         )
 
     if "CMP_VL_Net" in portefeuille.columns:
 
-        col3.metric(
+        c3.metric(
             "VL Moyenne",
             f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
         )
@@ -88,251 +134,217 @@ if uploaded_portefeuille:
 
     if uploaded_asfim:
 
-        st.header("📡 Mise à jour ASFIM")
+        try:
 
-        asfim = pd.read_excel(
-            uploaded_asfim
-        )
+            asfim = lire_asfim(
+                uploaded_asfim
+            )
 
-        st.success(
-            f"{len(asfim):,} OPCVM ASFIM chargés"
-        )
+            st.header("📡 Mise à jour ASFIM")
 
-        portefeuille["Code"] = (
-            portefeuille["Code"]
-            .astype(str)
-        )
+            st.success(
+                f"{len(asfim):,} OPCVM ASFIM chargés"
+            )
 
-        asfim["Code Maroclear"] = (
-            asfim["Code Maroclear"]
-            .astype(str)
-        )
+            # Détection automatique
 
-        portefeuille = portefeuille.merge(
-            asfim[
-                [
-                    "Code Maroclear",
-                    "OPCVM",
-                    "Société de Gestion",
-                    "Classification",
-                    "VL",
-                    "YTD",
-                    "1 semaine"
-                ]
-            ],
-            left_on="Code",
-            right_on="Code Maroclear",
-            how="left"
-        )
+            code_col = next(
+                c for c in asfim.columns
+                if "Maroclear" in c
+            )
 
-        # =============================================
-        # VALORISATION
-        # =============================================
+            opcvm_col = next(
+                c for c in asfim.columns
+                if "OPCVM" in c
+            )
 
-        if (
-            "Nombre_Parts" in portefeuille.columns
-            and
-            "VL" in portefeuille.columns
-        ):
+            vl_col = next(
+                c for c in asfim.columns
+                if c == "VL"
+            )
+
+            sg_col = next(
+                c for c in asfim.columns
+                if "Société" in c
+            )
+
+            class_col = next(
+                c for c in asfim.columns
+                if "Classification" in c
+            )
+
+            portefeuille["Code"] = (
+                portefeuille["Code"]
+                .astype(str)
+            )
+
+            asfim[code_col] = (
+                asfim[code_col]
+                .astype(str)
+            )
+
+            portefeuille = portefeuille.merge(
+                asfim[
+                    [
+                        code_col,
+                        opcvm_col,
+                        sg_col,
+                        class_col,
+                        vl_col
+                    ]
+                ],
+                left_on="Code",
+                right_on=code_col,
+                how="left"
+            )
+
+            # ==========================================
+            # VALORISATION
+            # ==========================================
 
             portefeuille["Valorisation_ASFIM"] = (
                 portefeuille["Nombre_Parts"]
-                *
-                portefeuille["VL"]
+                * portefeuille[vl_col]
             )
 
-        if (
-            "VL" in portefeuille.columns
-            and
-            "CMP_VL_Net" in portefeuille.columns
-        ):
-
             portefeuille["Ecart_VL"] = (
-                portefeuille["VL"]
+                portefeuille[vl_col]
                 -
                 portefeuille["CMP_VL_Net"]
             )
 
-        # =============================================
-        # DASHBOARD
-        # =============================================
+            # ==========================================
+            # DASHBOARD
+            # ==========================================
 
-        st.header("📊 Dashboard")
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        c1.metric(
-            "OPCVM",
-            len(portefeuille)
-        )
-
-        c2.metric(
-            "Valorisation",
-            f"{portefeuille['Valorisation_ASFIM'].sum():,.0f} MAD"
-        )
-
-        c3.metric(
-            "VL Moyenne",
-            f"{portefeuille['VL'].mean():,.2f}"
-        )
-
-        c4.metric(
-            "Écart Moyen",
-            f"{portefeuille['Ecart_VL'].mean():,.2f}"
-        )
-
-        # =============================================
-        # TOP POSITIONS
-        # =============================================
-
-        st.subheader(
-            "🏆 Top 10 Positions"
-        )
-
-        top10 = (
-            portefeuille
-            .sort_values(
-                "Valorisation_ASFIM",
-                ascending=False
+            st.header(
+                "📊 Dashboard ASFIM"
             )
-            .head(10)
-        )
 
-        st.dataframe(
-            top10[
-                [
-                    "Description",
-                    "Valorisation_ASFIM"
-                ]
-            ],
-            width="stretch"
-        )
+            d1, d2, d3, d4 = st.columns(4)
 
-        st.bar_chart(
-            top10.set_index(
-                "Description"
-            )["Valorisation_ASFIM"]
-        )
+            d1.metric(
+                "OPCVM",
+                len(portefeuille)
+            )
 
-        # =============================================
-        # TOP GAGNANTS
-        # =============================================
+            d2.metric(
+                "Valorisation",
+                f"{portefeuille['Valorisation_ASFIM'].sum():,.0f} MAD"
+            )
 
-        if "1 semaine" in portefeuille.columns:
+            d3.metric(
+                "VL Moyenne",
+                f"{portefeuille[vl_col].mean():,.2f}"
+            )
+
+            d4.metric(
+                "Écart VL",
+                f"{portefeuille['Ecart_VL'].mean():,.2f}"
+            )
+
+            # ==========================================
+            # TOP 10
+            # ==========================================
 
             st.subheader(
-                "🚀 Meilleures Performances"
+                "🏆 Top 10 Positions"
             )
 
-            gagnants = (
+            top10 = (
                 portefeuille
                 .sort_values(
-                    "1 semaine",
+                    "Valorisation_ASFIM",
                     ascending=False
                 )
                 .head(10)
             )
 
             st.dataframe(
-                gagnants[
+                top10[
                     [
                         "Description",
-                        "1 semaine"
+                        "Valorisation_ASFIM"
                     ]
                 ],
                 width="stretch"
             )
+
+            st.bar_chart(
+                top10.set_index(
+                    "Description"
+                )[
+                    "Valorisation_ASFIM"
+                ]
+            )
+
+            # ==========================================
+            # REPARTITION GESTION
+            # ==========================================
 
             st.subheader(
-                "🔻 Plus fortes baisses"
+                "🏢 Société de Gestion"
             )
 
-            perdants = (
-                portefeuille
-                .sort_values(
-                    "1 semaine"
+            sg = portefeuille.groupby(
+                sg_col
+            )[
+                "Valorisation_ASFIM"
+            ].sum()
+
+            st.bar_chart(sg)
+
+            # ==========================================
+            # CLASSIFICATION
+            # ==========================================
+
+            st.subheader(
+                "📑 Classification"
+            )
+
+            cl = portefeuille.groupby(
+                class_col
+            )[
+                "Valorisation_ASFIM"
+            ].sum()
+
+            st.bar_chart(cl)
+
+            # ==========================================
+            # EXPORT
+            # ==========================================
+
+            sortie = io.BytesIO()
+
+            with pd.ExcelWriter(
+                sortie,
+                engine="openpyxl"
+            ) as writer:
+
+                portefeuille.to_excel(
+                    writer,
+                    sheet_name="Portefeuille",
+                    index=False
                 )
-                .head(10)
+
+                asfim.to_excel(
+                    writer,
+                    sheet_name="ASFIM",
+                    index=False
+                )
+
+            st.download_button(
+                "📥 Télécharger Reporting Complet",
+                sortie.getvalue(),
+                file_name="Reporting_OPCVM_Complet.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            st.dataframe(
-                perdants[
-                    [
-                        "Description",
-                        "1 semaine"
-                    ]
-                ],
-                width="stretch"
+        except Exception as e:
+
+            st.error(
+                f"Erreur ASFIM : {e}"
             )
-
-        # =============================================
-        # SOCIETE DE GESTION
-        # =============================================
-
-        st.subheader(
-            "🏢 Répartition par société de gestion"
-        )
-
-        sg = (
-            portefeuille
-            .groupby(
-                "Société de Gestion"
-            )["Valorisation_ASFIM"]
-            .sum()
-            .sort_values(
-                ascending=False
-            )
-        )
-
-        st.bar_chart(sg)
-
-        # =============================================
-        # CLASSIFICATION
-        # =============================================
-
-        st.subheader(
-            "📑 Répartition par classification"
-        )
-
-        classe = (
-            portefeuille
-            .groupby(
-                "Classification"
-            )["Valorisation_ASFIM"]
-            .sum()
-        )
-
-        st.bar_chart(classe)
-
-        # =============================================
-        # EXPORT
-        # =============================================
-
-        buffer = io.BytesIO()
-
-        with pd.ExcelWriter(
-            buffer,
-            engine="openpyxl"
-        ) as writer:
-
-            portefeuille.to_excel(
-                writer,
-                sheet_name="Portefeuille",
-                index=False
-            )
-
-            asfim.to_excel(
-                writer,
-                sheet_name="ASFIM",
-                index=False
-            )
-
-        st.download_button(
-            "📥 Télécharger Reporting Complet",
-            buffer.getvalue(),
-            "Reporting_OPCVM_Complet.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
 
 # =====================================================
 # FOOTER
@@ -341,6 +353,9 @@ if uploaded_portefeuille:
 st.divider()
 
 st.caption(
-    f"Dernière actualisation : "
-    f"{datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    "Dernière actualisation : "
+    + datetime.now().strftime(
+        "%d/%m/%Y %H:%M"
+    )
 )
+`
