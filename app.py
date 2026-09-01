@@ -57,16 +57,15 @@ def lire_asfim(fichier):
             if "Code Maroclear" in df.columns:
                 return df
 
-        except:
+        except Exception:
             pass
 
     raise Exception(
         "Impossible d'identifier les colonnes ASFIM"
     )
 
-
 # =====================================================
-# PORTEFEUILLE
+# APPLICATION
 # =====================================================
 
 if uploaded_portefeuille is not None:
@@ -84,39 +83,50 @@ if uploaded_portefeuille is not None:
         .replace(")", "")
 
         for c in portefeuille.columns
+
     ]
 
-    st.header("📂 Portefeuille")
+    # ==========================================
+    # ONGLETS
+    # ==========================================
 
-    st.dataframe(
-        portefeuille,
-        width="stretch"
+    tab1, tab2, tab3 = st.tabs(
+        [
+            "📂 Portefeuille",
+            "📊 Dashboard ASFIM",
+            "📥 Reporting"
+        ]
     )
 
-    c1, c2, c3 = st.columns(3)
+    with tab1:
 
-    c1.metric(
-        "Nombre OPCVM",
-        len(portefeuille)
-    )
+        st.header("📂 Portefeuille")
 
-    if "Nombre_Parts" in portefeuille.columns:
-
-        c2.metric(
-            "Nombre Parts",
-            f"{portefeuille['Nombre_Parts'].sum():,.0f}"
+        st.dataframe(
+            portefeuille,
+            width="stretch"
         )
 
-    if "CMP_VL_Net" in portefeuille.columns:
+        c1, c2, c3 = st.columns(3)
 
-        c3.metric(
-            "VL Moyenne",
-            f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
+        c1.metric(
+            "Nombre OPCVM",
+            len(portefeuille)
         )
 
-    # =================================================
-    # ASFIM
-    # =================================================
+        if "Nombre_Parts" in portefeuille.columns:
+
+            c2.metric(
+                "Nombre Parts",
+                f"{portefeuille['Nombre_Parts'].sum():,.0f}"
+            )
+
+        if "CMP_VL_Net" in portefeuille.columns:
+
+            c3.metric(
+                "VL Moyenne",
+                f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
+            )
 
     if uploaded_asfim is not None:
 
@@ -125,16 +135,6 @@ if uploaded_portefeuille is not None:
             asfim = lire_asfim(
                 uploaded_asfim
             )
-
-            st.header("📡 Mise à jour ASFIM")
-
-            st.success(
-                f"{len(asfim)} lignes ASFIM chargées"
-            )
-
-            # -----------------------------------------
-            # NORMALISATION DES CODES
-            # -----------------------------------------
 
             portefeuille["Code"] = (
 
@@ -160,10 +160,6 @@ if uploaded_portefeuille is not None:
 
             )
 
-            # -----------------------------------------
-            # MERGE
-            # -----------------------------------------
-
             resultat = portefeuille.merge(
 
                 asfim[
@@ -172,7 +168,9 @@ if uploaded_portefeuille is not None:
                         "OPCVM",
                         "Société de Gestion",
                         "Classification",
-                        "VL"
+                        "VL",
+                        "YTD",
+                        "1 semaine"
                     ]
                 ],
 
@@ -181,53 +179,6 @@ if uploaded_portefeuille is not None:
                 how="left"
 
             )
-
-            # -----------------------------------------
-            # SI PAS DE MATCH PAR CODE
-            # -----------------------------------------
-
-            if resultat["VL"].notna().sum() == 0:
-
-                portefeuille["Description"] = (
-                    portefeuille["Description"]
-                    .astype(str)
-                    .str.upper()
-                    .str.strip()
-                )
-
-                asfim["OPCVM"] = (
-                    asfim["OPCVM"]
-                    .astype(str)
-                    .str.upper()
-                    .str.strip()
-                )
-
-                resultat = portefeuille.merge(
-
-                    asfim[
-                        [
-                            "OPCVM",
-                            "Société de Gestion",
-                            "Classification",
-                            "VL"
-                        ]
-                    ],
-
-                    left_on="Description",
-                    right_on="OPCVM",
-                    how="left"
-
-                )
-
-            nb_match = resultat["VL"].notna().sum()
-
-            st.info(
-                f"VL trouvées : {nb_match} / {len(resultat)}"
-            )
-
-            # -----------------------------------------
-            # CALCULS
-            # -----------------------------------------
 
             resultat["VL"] = pd.to_numeric(
                 resultat["VL"],
@@ -240,8 +191,10 @@ if uploaded_portefeuille is not None:
             )
 
             resultat["Valorisation_ASFIM"] = (
+
                 resultat["Nombre_Parts"]
                 * resultat["VL"]
+
             )
 
             resultat["Valorisation_ASFIM"] = (
@@ -256,96 +209,172 @@ if uploaded_portefeuille is not None:
                     - resultat["CMP_VL_Net"]
                 )
 
-            # -----------------------------------------
-            # KPI
-            # -----------------------------------------
+            if "YTD" in resultat.columns:
 
-            st.header("📊 Dashboard ASFIM")
-
-            d1, d2, d3, d4 = st.columns(4)
-
-            d1.metric(
-                "Nombre OPCVM",
-                len(resultat)
-            )
-
-            d2.metric(
-                "Valorisation",
-                f"{resultat['Valorisation_ASFIM'].sum():,.0f} MAD"
-            )
-
-            d3.metric(
-                "VL Moyenne",
-                f"{resultat['VL'].mean():,.2f}"
-            )
-
-            if "Ecart_VL" in resultat.columns:
-
-                d4.metric(
-                    "Ecart VL Moyen",
-                    f"{resultat['Ecart_VL'].mean():,.2f}"
+                resultat["YTD"] = pd.to_numeric(
+                    resultat["YTD"],
+                    errors="coerce"
                 )
 
-            # -----------------------------------------
-            # TOP POSITIONS
-            # -----------------------------------------
+            if "1 semaine" in resultat.columns:
 
-            st.subheader("🏆 Top 10 Positions")
-
-            top10 = (
-                resultat
-                .sort_values(
-                    "Valorisation_ASFIM",
-                    ascending=False
-                )
-                .head(10)
-            )
-
-            st.dataframe(
-                top10[
-                    [
-                        "Description",
-                        "Valorisation_ASFIM"
-                    ]
-                ],
-                width="stretch"
-            )
-
-            st.bar_chart(
-                top10.set_index(
-                    "Description"
-                )["Valorisation_ASFIM"]
-            )
-
-            # -----------------------------------------
-            # EXPORT
-            # -----------------------------------------
-
-            sortie = io.BytesIO()
-
-            with pd.ExcelWriter(
-                sortie,
-                engine="openpyxl"
-            ) as writer:
-
-                resultat.to_excel(
-                    writer,
-                    sheet_name="Portefeuille",
-                    index=False
+                resultat["1 semaine"] = pd.to_numeric(
+                    resultat["1 semaine"],
+                    errors="coerce"
                 )
 
-                asfim.to_excel(
-                    writer,
-                    sheet_name="ASFIM",
-                    index=False
+            with tab2:
+
+                st.header("📊 Dashboard ASFIM")
+
+                d1, d2, d3, d4 = st.columns(4)
+
+                d1.metric(
+                    "Nombre OPCVM",
+                    len(resultat)
                 )
 
-            st.download_button(
-                "📥 Télécharger Reporting Complet",
-                sortie.getvalue(),
-                file_name="Reporting_OPCVM_Complet.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                d2.metric(
+                    "Valorisation",
+                    f"{resultat['Valorisation_ASFIM'].sum():,.0f} MAD"
+                )
+
+                d3.metric(
+                    "VL Moyenne",
+                    f"{resultat['VL'].mean():,.2f}"
+                )
+
+                if "Ecart_VL" in resultat.columns:
+
+                    d4.metric(
+                        "Écart VL Moyen",
+                        f"{resultat['Ecart_VL'].mean():,.2f}"
+                    )
+
+                # PERFORMANCE
+
+                cperf1, cperf2 = st.columns(2)
+
+                cperf1.metric(
+                    "Performance YTD",
+                    f"{(resultat['YTD'].mean()*100):.2f}%"
+                    if "YTD" in resultat.columns
+                    else "-"
+                )
+
+                cperf2.metric(
+                    "Performance Hebdo",
+                    f"{(resultat['1 semaine'].mean()*100):.2f}%"
+                    if "1 semaine" in resultat.columns
+                    else "-"
+                )
+
+                # TOP POSITIONS
+
+                st.subheader(
+                    "🏆 Top 10 Positions"
+                )
+
+                top10 = (
+                    resultat
+                    .sort_values(
+                        "Valorisation_ASFIM",
+                        ascending=False
+                    )
+                    .head(10)
+                )
+
+                st.dataframe(
+                    top10[
+                        [
+                            "Description",
+                            "Valorisation_ASFIM"
+                        ]
+                    ],
+                    width="stretch"
+                )
+
+                st.bar_chart(
+                    top10.set_index(
+                        "Description"
+                    )["Valorisation_ASFIM"]
+                )
+
+                # TOP GAGNANTS
+
+                if "1 semaine" in resultat.columns:
+
+                    st.subheader(
+                        "🚀 Top Performances Hebdo"
+                    )
+
+                    gagnants = (
+                        resultat
+                        .sort_values(
+                            "1 semaine",
+                            ascending=False
+                        )
+                        .head(10)
+                    )
+
+                    st.dataframe(
+                        gagnants[
+                            [
+                                "Description",
+                                "1 semaine"
+                            ]
+                        ],
+                        width="stretch"
+                    )
+
+                # REPARTITION CLASSIFICATION
+
+                if "Classification" in resultat.columns:
+
+                    st.subheader(
+                        "📑 Répartition par Classification"
+                    )
+
+                    classement = (
+                        resultat.groupby(
+                            "Classification"
+                        )[
+                            "Valorisation_ASFIM"
+                        ]
+                        .sum()
+                    )
+
+                    st.bar_chart(
+                        classement
+                    )
+
+            with tab3:
+
+                sortie = io.BytesIO()
+
+                with pd.ExcelWriter(
+                    sortie,
+                    engine="openpyxl"
+                ) as writer:
+
+                    resultat.to_excel(
+                        writer,
+                        sheet_name="Portefeuille",
+                        index=False
+                    )
+
+                    asfim.to_excel(
+                        writer,
+                        sheet_name="ASFIM",
+                        index=False
+                    )
+
+                st.download_button(
+                    "📥 Télécharger Reporting Complet",
+                    sortie.getvalue(),
+                    "Reporting_OPCVM_Complet.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
         except Exception as e:
 
