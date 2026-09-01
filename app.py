@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import io
 from datetime import datetime
 
@@ -32,12 +33,12 @@ uploaded_asfim = st.sidebar.file_uploader(
 )
 
 # =====================================================
-# FONCTION ASFIM
+# FONCTION LECTURE ASFIM
 # =====================================================
 
 def lire_asfim(fichier):
 
-    for h in [0, 1, 2, 3, 4, 5]:
+    for header in range(0, 6):
 
         try:
 
@@ -45,7 +46,7 @@ def lire_asfim(fichier):
 
             df = pd.read_excel(
                 fichier,
-                header=h
+                header=header
             )
 
             df.columns = [
@@ -53,49 +54,36 @@ def lire_asfim(fichier):
                 for c in df.columns
             ]
 
-            if any(
-                "Maroclear" in c
-                for c in df.columns
-            ):
+            if "Code Maroclear" in df.columns:
                 return df
 
-        except Exception:
+        except:
             pass
 
     raise Exception(
-        "Structure ASFIM non reconnue."
+        "Impossible d'identifier les colonnes ASFIM"
     )
+
 
 # =====================================================
 # PORTEFEUILLE
 # =====================================================
 
-if uploaded_portefeuille:
+if uploaded_portefeuille is not None:
 
-    try:
-
-        portefeuille = pd.read_excel(
-            uploaded_portefeuille
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Erreur lecture portefeuille : {e}"
-        )
-
-        st.stop()
+    portefeuille = pd.read_excel(
+        uploaded_portefeuille
+    )
 
     portefeuille.columns = [
 
-        str(col)
+        str(c)
         .replace(" ", "_")
         .replace("-", "_")
         .replace("(", "")
         .replace(")", "")
 
-        for col in portefeuille.columns
-
+        for c in portefeuille.columns
     ]
 
     st.header("📂 Portefeuille")
@@ -126,11 +114,11 @@ if uploaded_portefeuille:
             f"{portefeuille['CMP_VL_Net'].mean():,.2f}"
         )
 
-    # =====================================================
+    # =================================================
     # ASFIM
-    # =====================================================
+    # =================================================
 
-    if uploaded_asfim:
+    if uploaded_asfim is not None:
 
         try:
 
@@ -141,74 +129,136 @@ if uploaded_portefeuille:
             st.header("📡 Mise à jour ASFIM")
 
             st.success(
-                f"{len(asfim):,} lignes ASFIM chargées"
+                f"{len(asfim)} lignes ASFIM chargées"
             )
 
-            st.subheader("Colonnes ASFIM détectées")
-
-            st.write(
-                asfim.columns.tolist()
-            )
-
-            code_col = next(
-                c for c in asfim.columns
-                if "Maroclear" in c
-            )
-
-            opcvm_col = next(
-                c for c in asfim.columns
-                if "OPCVM" in c
-            )
-
-            vl_col = next(
-                c for c in asfim.columns
-                if c == "VL"
-            )
-
-            sg_col = next(
-                c for c in asfim.columns
-                if "Société" in c
-            )
-
-            class_col = next(
-                c for c in asfim.columns
-                if "Classification" in c
-            )
+            # -----------------------------------------
+            # NORMALISATION DES CODES
+            # -----------------------------------------
 
             portefeuille["Code"] = (
-                portefeuille["Code"]
+
+                pd.to_numeric(
+                    portefeuille["Code"],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .astype(int)
                 .astype(str)
+
             )
 
-            asfim[code_col] = (
-                asfim[code_col]
+            asfim["Code Maroclear"] = (
+
+                pd.to_numeric(
+                    asfim["Code Maroclear"],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .astype(int)
                 .astype(str)
+
             )
 
-            portefeuille = portefeuille.merge(
+            # -----------------------------------------
+            # MERGE
+            # -----------------------------------------
+
+            resultat = portefeuille.merge(
+
                 asfim[
                     [
-                        code_col,
-                        opcvm_col,
-                        sg_col,
-                        class_col,
-                        vl_col
+                        "Code Maroclear",
+                        "OPCVM",
+                        "Société de Gestion",
+                        "Classification",
+                        "VL"
                     ]
                 ],
+
                 left_on="Code",
-                right_on=code_col,
+                right_on="Code Maroclear",
                 how="left"
+
             )
 
-            portefeuille["Valorisation_ASFIM"] = (
-                portefeuille["Nombre_Parts"]
-                * portefeuille[vl_col]
+            # -----------------------------------------
+            # SI PAS DE MATCH PAR CODE
+            # -----------------------------------------
+
+            if resultat["VL"].notna().sum() == 0:
+
+                portefeuille["Description"] = (
+                    portefeuille["Description"]
+                    .astype(str)
+                    .str.upper()
+                    .str.strip()
+                )
+
+                asfim["OPCVM"] = (
+                    asfim["OPCVM"]
+                    .astype(str)
+                    .str.upper()
+                    .str.strip()
+                )
+
+                resultat = portefeuille.merge(
+
+                    asfim[
+                        [
+                            "OPCVM",
+                            "Société de Gestion",
+                            "Classification",
+                            "VL"
+                        ]
+                    ],
+
+                    left_on="Description",
+                    right_on="OPCVM",
+                    how="left"
+
+                )
+
+            nb_match = resultat["VL"].notna().sum()
+
+            st.info(
+                f"VL trouvées : {nb_match} / {len(resultat)}"
             )
 
-            portefeuille["Ecart_VL"] = (
-                portefeuille[vl_col]
-                - portefeuille["CMP_VL_Net"]
+            # -----------------------------------------
+            # CALCULS
+            # -----------------------------------------
+
+            resultat["VL"] = pd.to_numeric(
+                resultat["VL"],
+                errors="coerce"
             )
+
+            resultat["Nombre_Parts"] = pd.to_numeric(
+                resultat["Nombre_Parts"],
+                errors="coerce"
+            )
+
+            resultat["Valorisation_ASFIM"] = (
+                resultat["Nombre_Parts"]
+                * resultat["VL"]
+            )
+
+            resultat["Valorisation_ASFIM"] = (
+                resultat["Valorisation_ASFIM"]
+                .fillna(0)
+            )
+
+            if "CMP_VL_Net" in resultat.columns:
+
+                resultat["Ecart_VL"] = (
+                    resultat["VL"]
+                    - resultat["CMP_VL_Net"]
+                )
+
+            # -----------------------------------------
+            # KPI
+            # -----------------------------------------
 
             st.header("📊 Dashboard ASFIM")
 
@@ -216,32 +266,40 @@ if uploaded_portefeuille:
 
             d1.metric(
                 "Nombre OPCVM",
-                len(portefeuille)
+                len(resultat)
             )
 
             d2.metric(
                 "Valorisation",
-                f"{portefeuille['Valorisation_ASFIM'].sum():,.0f} MAD"
+                f"{resultat['Valorisation_ASFIM'].sum():,.0f} MAD"
             )
 
             d3.metric(
                 "VL Moyenne",
-                f"{portefeuille[vl_col].mean():,.2f}"
+                f"{resultat['VL'].mean():,.2f}"
             )
 
-            d4.metric(
-                "Écart VL Moyen",
-                f"{portefeuille['Ecart_VL'].mean():,.2f}"
-            )
+            if "Ecart_VL" in resultat.columns:
 
-            st.subheader(
-                "🏆 Top 10 Positions"
-            )
+                d4.metric(
+                    "Ecart VL Moyen",
+                    f"{resultat['Ecart_VL'].mean():,.2f}"
+                )
 
-            top10 = portefeuille.sort_values(
-                "Valorisation_ASFIM",
-                ascending=False
-            ).head(10)
+            # -----------------------------------------
+            # TOP POSITIONS
+            # -----------------------------------------
+
+            st.subheader("🏆 Top 10 Positions")
+
+            top10 = (
+                resultat
+                .sort_values(
+                    "Valorisation_ASFIM",
+                    ascending=False
+                )
+                .head(10)
+            )
 
             st.dataframe(
                 top10[
@@ -259,29 +317,9 @@ if uploaded_portefeuille:
                 )["Valorisation_ASFIM"]
             )
 
-            st.subheader(
-                "🏢 Répartition Société de Gestion"
-            )
-
-            sg = portefeuille.groupby(
-                sg_col
-            )[
-                "Valorisation_ASFIM"
-            ].sum()
-
-            st.bar_chart(sg)
-
-            st.subheader(
-                "📑 Répartition Classification"
-            )
-
-            cl = portefeuille.groupby(
-                class_col
-            )[
-                "Valorisation_ASFIM"
-            ].sum()
-
-            st.bar_chart(cl)
+            # -----------------------------------------
+            # EXPORT
+            # -----------------------------------------
 
             sortie = io.BytesIO()
 
@@ -290,7 +328,7 @@ if uploaded_portefeuille:
                 engine="openpyxl"
             ) as writer:
 
-                portefeuille.to_excel(
+                resultat.to_excel(
                     writer,
                     sheet_name="Portefeuille",
                     index=False
